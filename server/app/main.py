@@ -11,7 +11,13 @@ import math
 import os
 import pathlib
 import re
+import secrets
+import smtplib
 import sys
+import ssl
+from email.message import EmailMessage
+from email.utils import formataddr
+from hashlib import sha256
 import tempfile
 from datetime import datetime, timedelta, timezone
 from zoneinfo import ZoneInfo
@@ -157,6 +163,78 @@ def require_content_reviewer(uid: int = Depends(require_user)) -> int:
     if not q1("SELECT 1 AS ok FROM system_roles WHERE user_id = :u AND role = 'content_reviewer'", u=uid):
         err(403, "CONTENT_REVIEW_FORBIDDEN", "只有平台内容审核员可以复核留言申诉")
     return uid
+
+
+def require_platform_admin(uid: int = Depends(require_user)) -> int:
+    if not q1("SELECT 1 AS ok FROM system_roles WHERE user_id=:u AND role='platform_admin'", u=uid):
+        err(403, "PLATFORM_ADMIN_FORBIDDEN", "只有平台管理员可以管理系统角色")
+    return uid
+
+
+SYSTEM_ROLE_NAMES = {
+    "ad_reviewer": "广告审核员", "place_curator": "地理资料审核员",
+    "collaboration_reviewer": "协作申请审核员", "content_reviewer": "留言申诉审核员",
+}
+
+
+@app.get("/api/platform-admin/users", response_model=list[dict], tags=["平台管理"])
+def platform_admin_users(q_text: str = "", limit: int = 50,
+                        uid: int = Depends(require_platform_admin)):
+    query = q_text.strip().lower()[:80]
+    term = "%" + query + "%"
+    rows = q("""SELECT u.id, u.username, u.email, u.email_verified_at, u.nickname,
+             u.created_at, coalesce(json_agg(json_build_object('role', sr.role,
+             'roleName', CASE sr.role WHEN 'ad_reviewer' THEN '广告审核员'
+             WHEN 'place_curator' THEN '地理资料审核员'
+             WHEN 'collaboration_reviewer' THEN '协作申请审核员'
+             WHEN 'content_reviewer' THEN '留言申诉审核员'
+             WHEN 'platform_admin' THEN '平台管理员' END)) FILTER (WHERE sr.role IS NOT NULL), '[]') AS roles
+             FROM users u LEFT JOIN system_roles sr ON sr.user_id=u.id
+             WHERE u.deleted_at IS NULL AND (:query='' OR lower(coalesce(u.username,'')||' '||
+             coalesce(u.email,'')||' '||coalesce(u.nickname,'')) LIKE :term)
+             GROUP BY u.id ORDER BY u.created_at DESC LIMIT :lim""",
+             query=query, term=term, lim=min(max(limit, 1), 100))
+    return [dict(row) for row in rows]
+
+
+class SystemRoleIn(BaseModel):
+    userId: int = Field(gt=0)
+    role: Literal["ad_reviewer", "place_curator", "collaboration_reviewer", "content_reviewer"]
+    reason: str = Field(min_length=4, max_length=500)
+
+
+@app.post("/api/platform-admin/roles", response_model=dict, tags=["平台管理"])
+def grant_system_role(body: SystemRoleIn, request: Request,
+                      uid: int = Depends(require_platform_admin)):
+    with engine.begin() as conn:
+        target = conn.execute(text("SELECT id FROM users WHERE id=:u AND deleted_at IS NULL"),
+                              {"u": body.userId}).first()
+        if not target:
+            err(404, "ACCOUNT_NOT_FOUND", "账号不存在")
+        conn.execute(text("""INSERT INTO system_roles (user_id, role) VALUES (:u,:r)
+            ON CONFLICT (user_id, role) DO NOTHING"""), {"u": body.userId, "r": body.role})
+        conn.execute(text("""INSERT INTO platform_role_audit_logs
+            (actor_id, target_user_id, role, action, reason, ip_address)
+            VALUES (:a,:u,:r,'grant',:reason,:ip)"""),
+            {"a": uid, "u": body.userId, "r": body.role, "reason": body.reason,
+             "ip": _request_ip(request)[:80]})
+    return {"ok": True}
+
+
+@app.delete("/api/platform-admin/roles", response_model=dict, tags=["平台管理"])
+def revoke_system_role(body: SystemRoleIn, request: Request,
+                       uid: int = Depends(require_platform_admin)):
+    if body.userId == uid:
+        err(409, "SELF_REVOKE_FORBIDDEN", "不能撤销自己的平台角色")
+    with engine.begin() as conn:
+        conn.execute(text("DELETE FROM system_roles WHERE user_id=:u AND role=:r"),
+                     {"u": body.userId, "r": body.role})
+        conn.execute(text("""INSERT INTO platform_role_audit_logs
+            (actor_id, target_user_id, role, action, reason, ip_address)
+            VALUES (:a,:u,:r,'revoke',:reason,:ip)"""),
+            {"a": uid, "u": body.userId, "r": body.role, "reason": body.reason,
+             "ip": _request_ip(request)[:80]})
+    return {"ok": True}
 
 
 # 统一山大王申请 / 山寨 / 留言版管理。路由模块不反向导入 main，
@@ -415,7 +493,7 @@ class RegisterIn(BaseModel):
     username: str = Field(min_length=3, max_length=32)
     password: str = Field(min_length=12, max_length=128)
     nickname: str | None = Field(default=None, max_length=32)
-    email: str | None = Field(default=None, max_length=254)
+    email: str = Field(min_length=3, max_length=254)
 
 
 class LoginIn(BaseModel):
@@ -682,14 +760,43 @@ def _validate_auth_input(username: str, email: str | None = None):
         err(400, "EMAIL_INVALID", "邮箱格式无效")
 
 
-@app.post("/api/auth/register", response_model=TokenOut, tags=["认证"],
+def _send_verification_email(recipient: str, token: str) -> None:
+    host = os.getenv("SMTP_HOST")
+    if not host:
+        raise RuntimeError("SMTP_HOST is not configured")
+    link = PUBLIC_BASE + "/app/verify-email.html?token=" + token
+    msg = EmailMessage()
+    msg["Subject"] = "请确认你的到此一游账号邮箱"
+    msg["From"] = formataddr((os.getenv("MAIL_FROM_NAME", "到此一游"),
+                              os.getenv("MAIL_FROM", "")))
+    msg["To"] = recipient
+    msg.set_content("请在 30 分钟内打开以下链接确认邮箱：\n\n" + link +
+                    "\n\n如果这不是你的操作，请忽略此邮件。")
+    port = int(os.getenv("SMTP_PORT", "587"))
+    if os.getenv("SMTP_SSL", "0") == "1":
+        with smtplib.SMTP_SSL(host, port, context=ssl.create_default_context(), timeout=15) as smtp:
+            if os.getenv("SMTP_USER"):
+                smtp.login(os.getenv("SMTP_USER"), os.getenv("SMTP_PASSWORD", ""))
+            smtp.send_message(msg)
+    else:
+        with smtplib.SMTP(host, port, timeout=15) as smtp:
+            smtp.ehlo()
+            if os.getenv("SMTP_STARTTLS", "1") == "1":
+                smtp.starttls(context=ssl.create_default_context())
+                smtp.ehlo()
+            if os.getenv("SMTP_USER"):
+                smtp.login(os.getenv("SMTP_USER"), os.getenv("SMTP_PASSWORD", ""))
+            smtp.send_message(msg)
+
+
+@app.post("/api/auth/register", response_model=dict, tags=["认证"],
           responses={400: {"description": "账号字段不合法"}, 409: {"description": "用户名或邮箱已注册"},
                      429: {"description": "注册过于频繁"}},
-          summary="注册用户名密码账号，并原子合并当前游客记录")
+          summary="创建待验证账号并发送邮箱确认链接")
 def register(body: RegisterIn, request: Request,
              x_guest_token: str | None = Header(default=None)):
     username = body.username.strip().lower()
-    email = body.email.strip().lower() if body.email else None
+    email = body.email.strip().lower()
     _validate_auth_input(username, email)
     ip_key = _auth_bucket_key("register-ip", _request_ip(request))
     if _auth_rate_limited([ip_key], limit=10, minutes=60):
@@ -700,9 +807,8 @@ def register(body: RegisterIn, request: Request,
         with engine.begin() as conn:
             exists_sql = "SELECT 1 FROM users WHERE lower(username) = :u"
             exists_params = {"u": username}
-            if email:
-                exists_sql += " OR lower(email) = :email"
-                exists_params["email"] = email
+            exists_sql += " OR lower(email) = :email"
+            exists_params["email"] = email
             exists = conn.execute(text(exists_sql + " LIMIT 1"), exists_params).first()
             if exists:
                 err(409, "ACCOUNT_EXISTS", "用户名或邮箱已注册")
@@ -710,10 +816,66 @@ def register(body: RegisterIn, request: Request,
                  VALUES (:u, :p, :e, :n) RETURNING id"""),
                                {"u": username, "p": encoded, "e": email,
                                 "n": body.nickname.strip() if body.nickname else username}).scalar_one()
-            merged = _merge_guest_records(conn, x_guest_token, uid)
+            raw_token = secrets.token_urlsafe(32)
+            conn.execute(text("""INSERT INTO email_verification_tokens
+                (user_id, token_hash, expires_at) VALUES (:u, :h, now() + interval '30 minutes')"""),
+                         {"u": uid, "h": sha256(raw_token.encode()).hexdigest()})
+        _send_verification_email(email, raw_token)
     except IntegrityError:
         err(409, "ACCOUNT_EXISTS", "用户名或邮箱已注册")
-    return TokenOut(token=make_token(uid), userId=uid, **merged)
+    except (RuntimeError, OSError, smtplib.SMTPException):
+        logging.exception("Could not send verification email")
+        err(503, "EMAIL_DELIVERY_UNAVAILABLE", "暂时无法发送验证邮件，请稍后重试")
+    return {"status": "verification_sent", "message": "验证邮件已发送，请查收邮箱"}
+
+
+class ResendVerificationIn(BaseModel):
+    email: str = Field(min_length=3, max_length=254)
+
+
+@app.post("/api/auth/resend-verification", response_model=dict, tags=["认证"])
+def resend_verification(body: ResendVerificationIn, request: Request):
+    email = body.email.strip().lower()
+    _validate_auth_input("valid_user", email)
+    ip_key = _auth_bucket_key("resend-ip", _request_ip(request))
+    if _auth_rate_limited([ip_key], limit=5, minutes=60):
+        err(429, "RATE_LIMITED", "请求过于频繁，请稍后再试")
+    _auth_record_attempt([ip_key], minutes=60)
+    user = q1("SELECT id, email_verified_at FROM users WHERE lower(email)=:e AND deleted_at IS NULL", e=email)
+    if user and not user["email_verified_at"]:
+        raw_token = secrets.token_urlsafe(32)
+        with engine.begin() as conn:
+            conn.execute(text("UPDATE email_verification_tokens SET consumed_at=now() WHERE user_id=:u AND consumed_at IS NULL"), {"u": user["id"]})
+            conn.execute(text("""INSERT INTO email_verification_tokens (user_id, token_hash, expires_at)
+                VALUES (:u, :h, now() + interval '30 minutes')"""),
+                {"u": user["id"], "h": sha256(raw_token.encode()).hexdigest()})
+        try:
+            _send_verification_email(email, raw_token)
+        except (RuntimeError, OSError, smtplib.SMTPException):
+            logging.exception("Could not resend verification email")
+            err(503, "EMAIL_DELIVERY_UNAVAILABLE", "暂时无法发送验证邮件，请稍后重试")
+    return {"status": "verification_sent", "message": "如果该邮箱需要验证，新的验证邮件已发送"}
+
+
+class VerifyEmailIn(BaseModel):
+    token: str = Field(min_length=20, max_length=200)
+
+
+@app.post("/api/auth/verify-email", response_model=TokenOut, tags=["认证"])
+def verify_email(body: VerifyEmailIn, x_guest_token: str | None = Header(default=None)):
+    digest = sha256(body.token.encode()).hexdigest()
+    with engine.begin() as conn:
+        row = conn.execute(text("""SELECT t.id AS token_id, t.user_id FROM email_verification_tokens t
+            JOIN users u ON u.id=t.user_id WHERE t.token_hash=:h AND t.consumed_at IS NULL
+            AND t.expires_at > now() AND u.deleted_at IS NULL FOR UPDATE OF t"""),
+            {"h": digest}).mappings().first()
+        if not row:
+            err(400, "VERIFICATION_INVALID", "验证链接无效或已过期，请重新注册或联系支持")
+        conn.execute(text("UPDATE email_verification_tokens SET consumed_at=now() WHERE id=:id"),
+                     {"id": row["token_id"]})
+        conn.execute(text("UPDATE users SET email_verified_at=now() WHERE id=:u"), {"u": row["user_id"]})
+        merged = _merge_guest_records(conn, x_guest_token, row["user_id"])
+    return TokenOut(token=make_token(row["user_id"]), userId=row["user_id"], **merged)
 
 
 @app.post("/api/auth/login", response_model=TokenOut, tags=["认证"],
@@ -728,7 +890,7 @@ def login(body: LoginIn, request: Request,
     user_key = _auth_bucket_key("login-user", username)
     if _auth_rate_limited([ip_key, user_key], limit=5, minutes=15):
         err(429, "RATE_LIMITED", "登录尝试过多，请 15 分钟后再试")
-    user = q1("SELECT id, password_hash FROM users WHERE lower(username) = :u", u=username)
+    user = q1("SELECT id, password_hash, email, email_verified_at FROM users WHERE lower(username) = :u", u=username)
     valid = False
     if user and user["password_hash"]:
         try:
@@ -738,6 +900,8 @@ def login(body: LoginIn, request: Request,
     if not valid:
         _auth_record_attempt([ip_key, user_key], minutes=15)
         err(401, "LOGIN_FAILED", "用户名或密码错误")
+    if user["email"] and not user["email_verified_at"]:
+        err(403, "EMAIL_NOT_VERIFIED", "请先完成邮箱验证，再登录")
     with engine.begin() as conn:
         conn.execute(text("DELETE FROM auth_rate_limits WHERE bucket_key = :k"), {"k": user_key})
         merged = _merge_guest_records(conn, x_guest_token, user["id"])

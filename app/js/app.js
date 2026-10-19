@@ -1642,6 +1642,7 @@
     U.openSheet(
       '<h3>注册或登录</h3><div class="sh-sub">' + esc(reason) + '。</div>' +
       '<div class="field"><label>用户名</label><input id="arrivalUser" autocomplete="username" maxlength="32"></div>' +
+      '<div class="field"><label>邮箱（注册必填）</label><input id="arrivalEmail" type="email" autocomplete="email" maxlength="254"></div>' +
       '<div class="field"><label>密码</label><input id="arrivalPassword" type="password" autocomplete="current-password" maxlength="128"></div>' +
       '<div class="hint">新账号密码至少 12 位；登录后当前到访与草稿会并入账号。</div>' +
       '<div id="arrivalAuthError" class="hint" role="status"></div>' +
@@ -1681,9 +1682,10 @@
     return '#/me';
   }
 
-  function requestAuth(mode, username, password, nickname) {
+  function requestAuth(mode, username, password, nickname, email) {
     var body = { username: username, password: password };
     if (mode === 'register' && nickname) body.nickname = nickname;
+    if (mode === 'register' && email) body.email = email;
     return window.API.guestToken().then(function (guestToken) {
       return window.API.timedFetch('/api/auth/' + mode, {
         method: 'POST',
@@ -1772,6 +1774,9 @@
       (register ? '<div class="field"><label for="authNickname">昵称 <small>可选</small></label>' +
         '<input id="authNickname" name="nickname" type="text" autocomplete="nickname" maxlength="32">' +
         '<div class="auth-help">不填时显示用户名</div></div>' : '') +
+      (register ? '<div class="field"><label for="authEmail">邮箱</label>' +
+        '<input id="authEmail" name="email" type="email" autocomplete="email" maxlength="254" required>' +
+        '<div class="auth-help">验证邮箱后才能登录、留言或提交山头申请</div></div>' : '') +
       '<div class="field"><label for="authPassword">密码</label>' +
       '<input id="authPassword" name="password" type="password" autocomplete="' +
       (register ? 'new-password' : 'current-password') + '" maxlength="128" required></div>' +
@@ -1792,6 +1797,7 @@
     var username = (document.getElementById('authUser') || {}).value || '';
     var password = (document.getElementById('authPassword') || {}).value || '';
     var nickname = (document.getElementById('authNickname') || {}).value || '';
+    var email = (document.getElementById('authEmail') || {}).value || '';
     var password2 = (document.getElementById('authPassword2') || {}).value || '';
     var errorEl = document.getElementById('authError');
     var submit = document.getElementById('authSubmit');
@@ -1807,6 +1813,9 @@
     if (mode === 'register' && password.length < 12) {
       fail('密码至少需要 12 位。'); return;
     }
+    if (mode === 'register' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+      fail('请填写有效邮箱，验证链接会发送到这个地址。'); return;
+    }
     if (mode === 'register' && password !== password2) {
       fail('两次输入的密码不一致。'); return;
     }
@@ -1817,17 +1826,27 @@
     }
     var oldGuestToken = null;
     try { oldGuestToken = localStorage.getItem('hikes.guest.token'); } catch (e) { /* ignore */ }
-    requestAuth(mode, username.trim(), password, nickname.trim())
+    requestAuth(mode, username.trim(), password, nickname.trim(), email.trim())
       .then(function (data) {
+        if (mode === 'register' && data.status === 'verification_sent') {
+          if (errorEl) errorEl.className = 'auth-help';
+          if (errorEl) errorEl.textContent = '验证邮件已发送。请打开邮件中的链接完成验证，再回来登录；当前游客到访记录仍保存在本设备。';
+          if (submit) { submit.disabled = true; submit.textContent = '请先验证邮箱'; }
+          return null;
+        }
         return commitAuthSession(data, mode, oldGuestToken, username.trim(), nickname.trim());
       })
       .then(function (result) {
+        if (!result) return;
         U.closeSheet();
         U.toast(result.draftSyncFailed ? '已登录；草稿保存在本机，联网后可重试' :
           '已登录，到访与草稿已保存');
         location.hash = authNext();
       })
       .catch(function (error) {
+        if (error && error.code === 'EMAIL_NOT_VERIFIED') {
+          fail('邮箱尚未验证。请查看收件箱或垃圾邮件文件夹，并打开验证链接。'); return;
+        }
         fail(error && error.message || '注册或登录失败，请稍后重试');
       });
   }
@@ -4328,16 +4347,26 @@
     if (act === 'arrival-auth') {
       var username = (document.getElementById('arrivalUser') || {}).value || '';
       var password = (document.getElementById('arrivalPassword') || {}).value || '';
+      var email = (document.getElementById('arrivalEmail') || {}).value || '';
       var authError = document.getElementById('arrivalAuthError');
       var authMode = t.getAttribute('data-mode') === 'register' ? 'register' : 'login';
       if (!username.trim() || !password) { authError.textContent = '请填写用户名和密码。'; return; }
+      if (authMode === 'register' && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email.trim())) {
+        authError.textContent = '注册需要填写有效邮箱。'; return;
+      }
       t.disabled = true;
       var oldGuestToken = null;
       try { oldGuestToken = localStorage.getItem('hikes.guest.token'); } catch (e) { /* ignore */ }
-      requestAuth(authMode, username.trim(), password, '')
+      requestAuth(authMode, username.trim(), password, '', email.trim())
       .then(function (data) {
+        if (authMode === 'register' && data.status === 'verification_sent') {
+          authError.textContent = '验证邮件已发送，请打开邮件中的链接完成注册。你的游客记录仍保存在本设备。';
+          t.disabled = true;
+          return null;
+        }
         return commitAuthSession(data, authMode, oldGuestToken, username.trim(), '');
       }).then(function (result) {
+        if (!result) return;
         U.closeSheet();
         U.toast(result.draftSyncFailed ? '已登录；草稿保存在本机，联网后可重试' :
           '已登录，到访与草稿已保存');

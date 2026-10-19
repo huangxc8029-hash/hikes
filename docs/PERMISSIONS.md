@@ -4,6 +4,18 @@
 
 当前已实现：山头管理身份统一由 `mountain_members`（`owner|member` + `active|left|removed`）判定，同一山头只有一位在任负责人；申请先落私有记录，平台审核通过后才创建新山头、点位、短链、留言板并授予身份。旧 `claims`、直接建点与旧协作审核接口已停用（410 `UPGRADE_REQUIRED`），不能再绕过审核授权。负责人可组建山寨；成员加入必须经过负责人意见与平台最终审核，负责人意见本身不授权。退出、移除、移交和平台接管后权限立即失效，历史留言、二维码与打卡保留。
 
+新增实现（迁移 `0019_email_and_platform_roles`）：密码注册要求邮箱并先进入待验证状态；邮箱确认前不签发登录令牌、不允许登录，游客记录只在验证成功后合并。邮件使用 SMTP 环境变量配置，验证 token 数据库存哈希且 30 分钟过期；接口 `POST /api/auth/resend-verification` 支持安全重发。已有账号在迁移时按历史行为视为已验证，避免上线后锁号。
+
+平台角色管理入口为 `/app/platform-admin.html`，仅 `platform_admin` 能访问其 API。首次部署需由数据库管理员在可信账号上执行一次：
+
+```sql
+INSERT INTO system_roles (user_id, role)
+VALUES (:trusted_user_id, 'platform_admin')
+ON CONFLICT (user_id, role) DO NOTHING;
+```
+
+页面可检索账号并授予／撤销广告、地理资料、协作申请、留言申诉审核角色；每次变更要求理由并写入 `platform_role_audit_logs`。该页面不能授予或撤销 `platform_admin`，防止通过普通操作扩散最高权限。山头负责人和版主仍通过申请审核获得特定山头范围内的权限。
+
 点位修改限本山头负责人；广告审核／首屏提升限 `system_roles.role='ad_reviewer'`，且不能自审或提升自己的广告；同一山顶板仅展示一个获准素材，新素材获批后替换旧版本。维护人可保存草稿、修改驳回版本并重提。审核员由数据库管理员明确授予，注册和维护人认领均不会自动取得该角色：
 
 ```sql

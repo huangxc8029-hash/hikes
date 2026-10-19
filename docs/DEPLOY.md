@@ -91,12 +91,14 @@ docker compose -f docker-compose.prod.yml exec db \
 ```
 
 - 台账是两张表：`alembic_version`（当前版本）和 `migration_log`（每次升级的版本、动作、执行者、时间）。
-- 空库：`upgrade head` 按顺序执行 `server/db/001`–`023`（基线修订 `0001_baseline`）。
+- 空库：`upgrade head` 按顺序执行基线和后续 Alembic 修订。
 - 已有库：逐个文件检查哨兵对象，**缺哪个补哪个**。停在 018 的旧库也只补 019–023，不重复建表、不删数据、不动留言与到访记录。
 - 失败：任何修订抛错即整版回滚，`alembic_version` 不前进，退出码非 0。看到非 0 就是没升上去，不要继续后面的步骤，先查日志。
 - 库被手工改坏（哨兵对象缺失但版本已登记）会在升级时报错并列出缺失的迁移，先人工核对再继续。
 - 数据库迁移脚本已冻结为历史记录：以后所有表结构变更都在 `server/migrations/versions/` 新增修订，不要往 `server/db/` 加 SQL 文件。规则见 `server/migrations/README.md`。
 - **回滚不靠 downgrade**：回退方式是用第 6 节的备份把库恢复到发布前的状态，再把应用退回上一个 git tag。`0001_baseline` 的 `downgrade()` 直接报错，防止有人用它删表。
+
+邮箱注册上线前，设置 `SMTP_HOST`、`SMTP_PORT`、`SMTP_USER`、`SMTP_PASSWORD`、`MAIL_FROM`、`PUBLIC_BASE_URL`；按邮件服务商要求选择 `SMTP_STARTTLS=1`（默认）或 `SMTP_SSL=1`。升级后由数据库管理员按 [PERMISSIONS.md](PERMISSIONS.md) 将 `platform_admin` 授予可信账号，再从 `/app/platform-admin.html` 管理审核员。未配置 SMTP 时，邮件注册会返回服务不可用，不会发放未经验证的账号令牌。
 
 ## 三、导入线路数据
 
