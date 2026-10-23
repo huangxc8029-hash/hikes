@@ -48,19 +48,26 @@
 
 ## 1. 认证
 
-### POST /api/auth/wechat
-两端共用，只有 code 来源不同：小程序用 `wx.login()` 的 code，H5 用网页授权的 code。
+### POST /api/auth/wechat（微信小程序）
+
+小程序先调用 `wx.login()`，只把短时有效的 `code` 发给服务端。服务端从环境变量
+`WECHAT_APP_ID`、`WECHAT_APP_SECRET` 读取凭据并请求微信 `code2Session`，绝不把
+`AppSecret` 或 `session_key` 返回给客户端。可带 `X-Guest-Token`，微信身份创建/更新、
+JWT 签发和游客打卡/草稿合并在同一个数据库事务中完成。当前该端点只支持小程序 code，
+H5 网页授权仍需单独实现。
 
 ```json
 // 请求
-{ "code": "081Abc...", "platform": "miniapp", "nickname": "阿甘" }
+{ "code": "081Abc..." }
 // 响应
-{ "token": "eyJ...", "refreshToken": "eyJ...",
-  "user": { "id": "u_1", "nickname": "阿甘", "isNew": true } }
+{ "token": "eyJ...", "tokenType": "Bearer", "userId": 1,
+  "mergedVisits": 2, "mergedDrafts": 1 }
 ```
-**先发 token，昵称后面再补。** 扫码进来的人不该被注册表单拦住。
 
-### POST /api/auth/register / POST /api/auth/login（H5 1.0）
+JWT 有效期 7 天；昵称通过 `GET /api/me/account` 读取。未配置服务器凭据时返回
+503 `WECHAT_LOGIN_NOT_CONFIGURED`，微信服务临时不可用返回 502；不使用开发登录降级。
+
+### POST /api/auth/register / POST /api/auth/login（用户名密码）
 
 当前 H5 使用用户名密码账号，邮箱可选。密码至少 12 位，以 Argon2 哈希保存；登录按来源 IP 和规范化用户名双限流，注册按 IP 限流。两个接口都可带 `X-Guest-Token`：账号创建／登录与游客到访及草稿合并处在同一数据库事务中，返回 `token`、`userId`、`mergedVisits` 与 `mergedDrafts`。登录成功后仍停留在原扫码点位。
 
@@ -368,6 +375,8 @@ v1 **只收纯文本，最多 200 字**，图片走 v1.1。
 ```
 批量上报传数组。三个验证问题全靠它：
 
+小程序批量上报每次最多 50 条；带有效 Bearer JWT 时服务端填写 `events.user_id`，未登录事件保持匿名。小程序只发送事件名与来源等白名单字段。接口按来源 IP 限制每小时请求次数。
+
 - **会不会扫码** → `scan_landing` 去重人数
 - **会不会留言** → `comment` / `visit` 人数比
 - **会不会反复打开** → `app_open` 的 7 日回访率（按 user_id 去重）
@@ -459,7 +468,9 @@ v1 **只收纯文本，最多 200 字**，图片走 v1.1。
 
 ### POST /api/me/delete-account
 ```json
-// 请求
+// 请求（二选一重新验证身份）
+{ "code": "微信 wx.login() 返回的一次性 code", "confirm": "注销" }
+// 或密码账号
 { "password": "……", "confirm": "注销" }
 // 响应 200
 { "deletedAt": "2026-10-14T13:00:00Z",
@@ -471,7 +482,7 @@ v1 **只收纯文本，最多 200 字**，图片走 v1.1。
   "message": "账号已注销：……" }
 ```
 
-- `confirm` 必须原样写「注销」，否则 400 `CONFIRM_REQUIRED`；密码不对 403 `PASSWORD_MISMATCH`；已注销过 409 `ACCOUNT_DELETED`。
+- `confirm` 必须原样写「注销」，否则 400 `CONFIRM_REQUIRED`。微信小程序账号提交新的 `wx.login()` code，服务端通过 code2Session 核对其 OpenID 与当前 JWT 账号一致；密码账号仍可用密码验证。已注销过返回 409 `ACCOUNT_DELETED`。
 - **删除**：位置轨迹、到访记录、想去、私人纪念与留言草稿、发布回执、赞踩、自己作为作者的申诉、自己作为申请人的协作申请、认领记录、系统角色，以及他所维护点位的 `maintainer_id`。
 - **保留但去掉身份**：公开留言正文、举报记录、审计行、审核记录。它们仍指向这行用户，但 `username / nickname / email / avatar / password_hash / wx_openid / wx_unionid` 全部置空，页面显示为「山友」。
 - 注销后：旧 JWT 立刻失效（`require_user` 每次校验 `deleted_at`，返回 401 `ACCOUNT_DELETED`）；登录不可能成功（没有用户名与密码）；同一用户名可以重新注册，但那是**新账号**，不继承任何历史。

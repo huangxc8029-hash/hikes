@@ -1,0 +1,8 @@
+node_modules/
+dist/
+.taro/
+.swc/
+project.private.config.json
+*.log
+.env.development
+.env.production

@@ -214,7 +214,8 @@ def main():
                         mountain_id = COALESCE(points.mountain_id, EXCLUDED.mountain_id)"""),
                     {"code": code, "name": p["name"], "r": r["id"], "idx": p["idx"] + 1,
                      "total": len(peaks), "mountain_id": mountain_id,
-                     "lv": (seg or {}).get("level", "mid"),
+                     # 通向这个顶的分段不评级时，点位难度就是 NULL，不要编成 mid
+                     "lv": (seg or {}).get("level"),
                      "alt": p["altitude"], "lat": p["lat"], "lng": p["lng"]})
                 pid = c.execute(text("SELECT id FROM points WHERE code = :c"), {"c": code}).scalar()
                 c.execute(text("""INSERT INTO short_links (code, point_id) VALUES (:c, :p)

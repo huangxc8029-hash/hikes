@@ -13,6 +13,13 @@ docker compose exec api alembic upgrade head   # 建表/升级；空库第一次
 - 建表不再由 Docker 启动时执行 SQL 完成（2026-10-14 起），统一走 `alembic upgrade head`；
   `db/001`–`023` 是基线修订读取的历史脚本，升级台账见 `migrations/README.md`
 
+### 微信小程序登录配置
+
+在部署 API 的环境中设置 `WECHAT_APP_ID` 和 `WECHAT_APP_SECRET`。本地 Docker Compose
+会从 `server/.env` 读取这两个变量；该文件不要提交到 Git。AppSecret 只放在 API 服务器，
+小程序只提交 `wx.login()` 返回的一次性 code。未配置时 `/api/auth/wechat` 返回明确的
+`WECHAT_LOGIN_NOT_CONFIGURED`，不会降级到开发登录。
+
 ## 导入种子数据（三峰连穿）
 
 ```bash
@@ -54,9 +61,9 @@ curl -s -X POST localhost:8000/api/points/1/visit \
 
 （`X-User-Id` 用 seed 打印出来的演示用户 id，默认是 1。）
 
-## 现在还没做的（W2 时代的清单，多数已实现，保留作历史记录）
+## 仍需后续完善
 
-- 微信登录 + JWT（现在是 `X-User-Id` 头，只为联调）
+- 生产部署需配置 `WECHAT_APP_ID`、`WECHAT_APP_SECRET` 和正式 `JWT_SECRET`
 - 短链路由 `GET /p/{code}`（表已经建好）
 - 留言接口 + 赞/踩（表已经建好）
 - 埋点接口 `POST /api/events`

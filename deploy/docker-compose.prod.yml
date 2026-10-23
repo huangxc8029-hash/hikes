@@ -31,8 +31,8 @@ services:
       JWT_SECRET: ${JWT_SECRET}
       PUBLIC_BASE_URL: ${PUBLIC_BASE_URL}
       TRUST_PROXY_HEADERS: "1"
-      WX_APPID: ${WX_APPID}
-      WX_SECRET: ${WX_SECRET}
+      WECHAT_APP_ID: ${WX_APPID}
+      WECHAT_APP_SECRET: ${WX_SECRET}
       ROUTE_MEDIA_ROOT: /srv/media/covers
       # 写接口限流阈值（每小时）。留空用代码默认值，口径见 docs/API.md「写接口限流」。
       RATE_LIMIT_COMMENT_PER_IDENTITY_HOUR: ${RATE_LIMIT_COMMENT_PER_IDENTITY_HOUR:-}

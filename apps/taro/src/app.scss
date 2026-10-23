@@ -1,0 +1,15 @@
+page { --color-forest: #315c48; --color-ink: #26382f; --color-paper: #f7f5ee; --color-card: #fffdf8; --color-muted: #81847a; --radius-card: 24rpx; background: var(--color-paper); color: var(--color-ink); font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", sans-serif; font-size: 28rpx; }
+.page { min-height: 100vh; padding: 34rpx 32rpx 60rpx; box-sizing: border-box; }
+.eyebrow { color: #718474; font-size: 21rpx; letter-spacing: 4rpx; }
+.hero-title { display:block; font-size: 48rpx; line-height: 1.32; font-weight: 700; margin: 22rpx 0 12rpx; }
+.subtle { color: #81847a; font-size: 24rpx; line-height: 1.65; }
+.card { background: var(--color-card); border-radius: var(--radius-card); padding: 28rpx; margin: 20rpx 0; box-shadow: 0 8rpx 34rpx rgba(49,67,53,.055); }
+.row { display:flex; align-items:center; justify-content:space-between; }
+.section-title { font-size:34rpx; font-weight:650; margin:34rpx 0 14rpx; }
+.primary { background:var(--color-forest); color:#fff; border-radius:999rpx; font-size:27rpx; margin-top:22rpx; }
+.secondary { background:#edf1e9; color:#315c48; border-radius:999rpx; font-size:25rpx; }
+.text-input { background:#f6f4ec; padding:20rpx; border-radius:14rpx; box-sizing:border-box; width:100%; margin:16rpx 0; }
+.pill { color:#315c48; background:#e9efe6; padding:8rpx 16rpx; border-radius:999rpx; font-size:22rpx; }
+.map { width:100%; height:430rpx; border-radius:18rpx; margin-top:18rpx; }
+.privacy-mask{position:fixed;z-index:9999;inset:0;background:rgba(20,30,24,.52);display:flex;align-items:center;justify-content:center;padding:40rpx;box-sizing:border-box}.privacy-dialog{width:100%;padding:34rpx;background:#fffdf8;border-radius:24rpx;box-sizing:border-box}.privacy-link{display:block;color:#315c48;text-decoration:underline;margin:24rpx 0}.privacy-agree{background:#315c48;color:white;border-radius:999rpx;font-size:27rpx}.privacy-decline{display:block;text-align:center;color:#81847a;padding-top:22rpx;font-size:24rpx}
+.list-pagination { display:flex; align-items:center; justify-content:space-between; gap:16rpx; margin:26rpx 30rpx 48rpx; color:#315c48; font-size:24rpx; }.list-pagination text:first-child,.list-pagination text:last-child { padding:18rpx 24rpx; border-radius:999rpx; background:#fff; border:1rpx solid #d7e8df; }

@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="zh-CN"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>举报处理 · 到此一游</title>
+<style>body{max-width:760px;margin:40px auto;padding:0 20px;font:16px/1.6 system-ui;color:#24382f;background:#f7f5ee}article{background:white;padding:20px;margin:16px 0;border-radius:12px}textarea{width:100%;box-sizing:border-box;min-height:90px;font:inherit}button,select{font:inherit;padding:10px;margin:8px 8px 0 0}button{cursor:pointer}button:disabled{cursor:wait;opacity:.5}#status{white-space:pre-wrap}blockquote{white-space:pre-wrap;margin:12px 0}a{color:#315c48}</style>
+<h1>举报处理</h1><p>请先在<a href="/app/">到此一游</a>登录拥有内容审核权限的账号。</p>
+<label>队列 <select id="filter"><option value="pending">待处理</option><option value="accepted">已受理</option><option value="rejected">已驳回</option></select></label><button id="refresh">刷新</button>
+<p id="status" role="status"></p><main id="queue"></main>
+<script src="./js/reports.js"></script></html>

@@ -7,7 +7,7 @@ services:
       POSTGRES_USER: hikes
       POSTGRES_PASSWORD: hikes
       POSTGRES_DB: hikes
-    ports: ["5432:5432"]
+    ports: ["127.0.0.1:5432:5432"]
     volumes:
       - dbdata:/var/lib/postgresql/data
       # 注意：不再挂 docker-entrypoint-initdb.d。
@@ -25,6 +25,8 @@ services:
       DATABASE_URL: postgresql+psycopg://hikes:hikes@db:5432/hikes
       JWT_SECRET: dev-only-change-me
       ALLOW_DEV_LOGIN: "1"        # 仅本地联调；生产必须去掉
+      WECHAT_APP_ID: ${WECHAT_APP_ID:-}
+      WECHAT_APP_SECRET: ${WECHAT_APP_SECRET:-}
       # 写接口限流阈值（每小时）。留空用代码默认值：留言 10/30、打卡 60/120、举报 10/30
       # （前者按账号或游客身份，后者按来源 IP）。口径见 docs/API.md「写接口限流」。
       RATE_LIMIT_COMMENT_PER_IDENTITY_HOUR: ${RATE_LIMIT_COMMENT_PER_IDENTITY_HOUR:-}
@@ -40,7 +42,7 @@ services:
       RATE_LIMIT_READ_PER_MINUTE_IP: ${RATE_LIMIT_READ_PER_MINUTE_IP:-600}
       RATE_LIMIT_READ_PER_HOUR_IP: ${RATE_LIMIT_READ_PER_HOUR_IP:-20000}
       RATE_LIMIT_READ_BLOCK_AFTER_TRIPS: ${RATE_LIMIT_READ_BLOCK_AFTER_TRIPS:-2000}
-    ports: ["8000:8000"]
+    ports: ["127.0.0.1:8000:8000"]
     volumes:
       - ./app:/srv/app:ro
       - ./seeds:/srv/seeds:ro

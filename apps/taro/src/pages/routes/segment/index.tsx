@@ -3,11 +3,12 @@ import { View, Text, Textarea } from '@tarojs/components'
 import Taro from '@tarojs/taro'
 import { getErrorMessage, request, trackEvent } from '../../../services/api'
 import { createSegmentComment } from '../../../services/segment-comments'
+import CommentActions, { CommentItem } from '../../../components/CommentActions'
 import './index.scss'
 
 type Segment = { id:number; no:number; km:number; up_m:number; down_m:number; pct:number; kind:string; level?:string|null; confirmed:boolean; difficulty_applicable:boolean }
 type Route = { name:string; segments:Segment[] }
-type Comment = { id:number; nickname?:string|null; text:string; created_at:string }
+type Comment = CommentItem
 
 export default function SegmentPage(){
   const params=Taro.getCurrentInstance().router?.params||{}
@@ -28,7 +29,7 @@ export default function SegmentPage(){
   return <View className='page segment-page'><Text className='eyebrow'>TRAIL SEGMENT</Text><Text className='hero-title'>{segment?`第 ${segment.no} 段 · ${segment.kind==='climb'?'上坡':segment.kind==='desc'?'下坡':'缓行'}`:'路段详情'}</Text>
     {loading&&<View className='card'>正在读取路段资料…</View>}{error&&<View className='card segment-error'>{error}</View>}
     {segment&&<><View className='card'><Text className='section-label'>{routeName}</Text><Text>长度 {segment.km} km · 爬升 {segment.up_m} m · 下降 {segment.down_m} m</Text><Text>坡度 {segment.pct}% · {segment.difficulty_applicable?`难度 ${segment.level||'待定'}`:'不适用难度评级'}</Text><Text className='subtle'>{segment.confirmed?'资料已核实':'自动分析，待实地核实'}</Text></View>
-      <Text className='section-title'>路段留言</Text>{comments.length?comments.map(item=><View className='card segment-comment' key={item.id}><Text>{item.nickname||'山友'} · {new Date(item.created_at).toLocaleDateString()}</Text><Text>{item.text}</Text></View>):!error&&<View className='card'><Text className='subtle'>还没有路段留言。</Text></View>}
+      <Text className='section-title'>路段留言</Text>{comments.length?comments.map(item=><View className='card segment-comment' key={item.id}><Text>{item.nickname||'山友'} · {new Date(item.created_at).toLocaleDateString()}</Text><Text>{item.text}</Text><CommentActions comment={item} onUpdate={updated=>setComments(items=>items.map(c=>c.id===updated.id?updated:c))}/></View>):!error&&<View className='card'><Text className='subtle'>还没有路段留言。</Text></View>}
       <View className='card segment-write'><Text className='section-label'>补充这一段的路况</Text><Textarea maxlength={200} value={draft} placeholder={Taro.getStorageSync('hikes.auth.token')?'写下你最近看到的情况…':'登录后可发布留言，游客可以继续浏览'} onInput={event=>setDraft(event.detail.value)}/><View className='primary action' onClick={publish}>{busy?'正在发布…':'确认并公开发布'}</View></View>
       <View className='secondary action' onClick={()=>Taro.navigateTo({url:`/pages/routes/detail/index?slug=${encodeURIComponent(slug)}`})}>返回整条路线</View></>}
   </View>

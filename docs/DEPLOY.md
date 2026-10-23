@@ -5,7 +5,7 @@
 
 ## 一、服务器准备
 
-香港/新加坡节点（免备案）。最低 2 核 4G、40G 盘。
+中国内地 ECS 对外提供域名服务前需完成网站 ICP 备案；`www.fotowa.fun` 已由站点所有者确认备案，部署时仍需核对备案接入、域名解析与 HTTPS。建议最低 2 核 4G、40G 盘。
 
 ```bash
 # 装 docker（Ubuntu/Debian）
@@ -16,7 +16,7 @@ curl -fsSL https://get.docker.com | sh
 
 ```bash
 git clone <仓库> && cd hikes/deploy
-cp .env.example .env && vi .env      # 至少改 POSTGRES_PASSWORD / JWT_SECRET / PUBLIC_BASE_URL
+cp .env.example .env && vi .env      # 填写数据库密码、JWT_SECRET、WX_APPID、WX_SECRET；不要提交 .env
 docker compose -f docker-compose.prod.yml up -d --build
 docker compose -f docker-compose.prod.yml exec api alembic upgrade head   # 建表/升级，空库也走这条
 ```

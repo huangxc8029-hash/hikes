@@ -1,0 +1,22 @@
+.slope-card{background:#fffdf8;border-radius:26rpx;padding:26rpx 26rpx 18rpx;margin:22rpx 0;box-shadow:0 8rpx 34rpx rgba(49,67,53,.055)}
+.slope-head{display:flex;align-items:baseline;justify-content:space-between;margin-bottom:16rpx}
+.slope-title{font-size:28rpx;font-weight:650;color:#26382f}
+.slope-plot{display:flex;align-items:stretch}
+.slope-axis{display:flex;flex-direction:column;justify-content:space-between;width:96rpx;padding:6rpx 8rpx 6rpx 0;box-sizing:border-box}
+.slope-axis-label{font-size:19rpx;color:#a3a79c;text-align:right}
+.slope-canvas{position:relative;flex:1;height:230rpx;border-bottom:1rpx solid #e6ece4;background:linear-gradient(#f4f8f4,#fffdf8)}
+.slope-col{position:absolute;bottom:0;border-radius:2rpx 2rpx 0 0}
+.slope-peak{position:absolute;top:0;bottom:0;width:2rpx;background:rgba(49,92,72,.28)}
+.slope-peak-dot{position:absolute;top:8rpx;left:-5rpx;width:12rpx;height:12rpx;border-radius:50%;background:#e0507e;border:2rpx solid #fff}
+.slope-peak-label{position:absolute;top:24rpx;left:8rpx;font-size:18rpx;color:#5d6a5f;white-space:nowrap}
+.slope-foot{display:flex;justify-content:space-between;padding:8rpx 0 0 96rpx}
+.slope-legend{display:flex;gap:22rpx;padding:14rpx 0 4rpx;flex-wrap:wrap}
+.slope-legend-item{display:flex;align-items:center;gap:8rpx;font-size:21rpx;color:#81847a}
+.slope-dot{width:14rpx;height:14rpx;border-radius:4rpx;flex:0 0 auto}
+.slope-table{margin-top:10rpx;border-top:1rpx solid #eef2ed}
+.slope-row{display:flex;align-items:center;gap:12rpx;padding:14rpx 0;border-bottom:1rpx solid #f1f4f0;font-size:22rpx;color:#5d6a5f}
+.slope-row-no{flex:0 0 96rpx;font-weight:700;color:#26382f}
+.slope-row-km{flex:0 0 186rpx;color:#81847a}
+.slope-row-pct{flex:1;color:#81847a}
+.slope-row-lv{font-weight:700}
+.slope-hint{display:block;padding:14rpx 0 0;font-size:20rpx;color:#a3a79c;line-height:1.6}

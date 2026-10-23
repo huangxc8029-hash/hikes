@@ -1,0 +1,8 @@
+.hikes-tabbar { height:112rpx; padding-bottom:env(safe-area-inset-bottom); background:#fffdf8; border-top:1rpx solid #e8e8df; display:flex; align-items:flex-start; justify-content:space-around; box-shadow:0 -8rpx 28rpx rgba(38,56,47,.06); }
+.hikes-tab { width:20%; display:flex; flex-direction:column; align-items:center; justify-content:center; color:#858b80; padding-top:12rpx; box-sizing:border-box; }
+.hikes-tab-icon { width:48rpx; height:48rpx; display:flex; align-items:center; justify-content:center; }.hikes-tab-icon image { width:42rpx; height:42rpx; }
+.hikes-tab-label { font-size:20rpx; margin-top:5rpx; }
+.hikes-tab.active { color:#315c48; }
+.hikes-tab.scan-tab { padding-top:0; transform:translateY(-26rpx); color:#ed4f72; }
+.scan-tab .hikes-tab-icon { width:86rpx; height:86rpx; border:6rpx solid #fffdf8; border-radius:50%; background:#ed4f72; color:#fff; font-size:50rpx; box-shadow:0 6rpx 20rpx rgba(237,79,114,.28); }
+.scan-tab .hikes-tab-label { margin-top:0; color:#ed4f72; font-weight:600; }

@@ -1,0 +1,21 @@
+/* 机场信息牌：深色板面 + 等宽感字段，换线时整块"翻下去再翻回来" */
+.rec-board{position:relative;z-index:2;margin:-38rpx 30rpx 0;padding:26rpx 30rpx 28rpx;border-radius:34rpx;
+  background:linear-gradient(160deg,#1f2a2f,#2c3a34 55%,#243029);box-shadow:0 18rpx 46rpx rgba(20,34,28,.28);
+  box-sizing:border-box;perspective:720rpx;overflow:hidden}
+.rec-board:after{content:'';position:absolute;inset:0;pointer-events:none;
+  background:repeating-linear-gradient(0deg,rgba(255,255,255,.045) 0 2rpx,transparent 2rpx 8rpx)}
+.rec-board-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:18rpx}
+.rec-board-label{font-size:20rpx;letter-spacing:5rpx;color:#88e0b8;font-weight:700}
+.rec-board-hint{font-size:19rpx;color:rgba(233,245,238,.5)}
+.rec-board-body{transition:transform .28s cubic-bezier(.23,1,.32,1),opacity .28s ease;
+  transform-origin:center center;backface-visibility:hidden}
+.rec-board-body.is-swapping{transform:rotateX(-88deg);opacity:.12}
+.rec-board-main{display:flex;align-items:baseline;justify-content:space-between;gap:16rpx}
+.rec-board-name{font-size:44rpx;font-weight:800;color:#f4fbf6;letter-spacing:1rpx;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:74%}
+.rec-board-km{font-size:26rpx;color:#8de6bd;font-weight:700;font-variant-numeric:tabular-nums}
+.rec-board-meta{display:flex;gap:22rpx;margin-top:12rpx;flex-wrap:wrap}
+.rec-board-cell{font-size:22rpx;color:rgba(233,245,238,.72);font-variant-numeric:tabular-nums}
+.rec-board-foot{display:flex;align-items:center;justify-content:space-between;margin-top:20rpx}
+.rec-board-tier{font-size:20rpx;color:#0f1b16;background:#8de6bd;border-radius:8rpx;padding:4rpx 12rpx;font-weight:700}
+.rec-board-cta{font-size:24rpx;color:#ffd7e3;font-weight:700;letter-spacing:1rpx}
